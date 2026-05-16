@@ -1,111 +1,173 @@
 # AI 增肌教练
 
-基于 LangGraph Multi-Agent 架构的 AI 增肌教练系统，使用 DeepSeek API 驱动，提供个性化训练计划生成、每日状态调整、训练日志追踪等功能。
+> 基于 LangGraph Multi-Agent + RAG 的个性化增肌训练决策系统
+
+不是健身聊天机器人，而是一个有科学依据、有个人记忆、
+能随用户状态动态调整的**训练决策引擎**。
+
+对齐 Keep AI 方向核心课题：
+- 课题四：Multi-Agent 教练体系
+- 课题六：基于 RAG 的知识检索问答
+
+---
+
+## 系统架构
+
+```
+用户输入
+  ↓
+Orchestrator（意图识别 + 用户档案读取）
+  ↓                    ↓
+Training Agent    Recovery Agent     ← 并行执行
+（计划生成）       （状态评估）
+  ↓                    ↓
+        Log Agent（日志写入 + PR检测）
+  ↓
+LangGraph CoachState（共享状态）
+  ↓
+RAG 知识库（5个 Collection）+ MySQL + ChromaDB
+```
+
+---
+
+## 核心技术决策
+
+**1. 为什么用 Multi-Agent 而不是单个 LLM**
+
+训练建议和恢复建议本质上是相互矛盾的约束：
+Training Agent 关心"今天能练多少"，
+Recovery Agent 关心"今天能不能练"。
+单个 LLM 处理多角色会导致推理质量下降，
+分 Agent 后每个只需专注自己的判断域。
+
+**2. RAG 知识库按 decision_type 分层**
+
+传统 RAG 只做语义检索，把"什么是渐进超负荷"和
+"渐进超负荷停滞了怎么办"混在一起返回。
+本项目给每个知识块打上 decision_type 标签
+（what/why/how/when/fix），
+结合意图识别精准过滤，
+让"问题诊断类"问题只检索 fix 类知识块。
+
+**3. 临时调整不写数据库**
+
+用户状态差时的当日计划调整只存在 session state，
+明天自动恢复长期计划，
+保证长期训练逻辑不被单日状态污染。
+
+**4. 循环周期索引替代自然周**
+
+训练计划按完整循环存储（含休息日），
+用 `(today - macro_start_date).days % 循环总天数`
+计算今日应执行哪个分化，
+支持三分化/四分化/五分化任意周期，不依赖自然周。
+
+---
 
 ## 技术栈
 
-- Python 3.11+
-- LangGraph 0.2+ (Multi-Agent Supervisor 模式)
-- LangChain + OpenAI SDK (调用 DeepSeek API)
-- ChromaDB (本地向量 RAG 知识库)
-- MySQL (本地数据库)
-- Streamlit (前端界面)
+| 层级 | 技术 | 用途 |
+|------|------|------|
+| Agent 框架 | LangGraph 0.2+ | Multi-Agent 状态图 |
+| LLM | DeepSeek API | 训练决策生成 |
+| 向量库 | ChromaDB | RAG 语义检索（5个Collection）|
+| 关系库 | MySQL | 用户档案、训练日志、PR记录 |
+| 前端 | Streamlit | 交互界面 |
 
-## 安装与运行
+---
 
-### 1. 克隆项目
+## RAG 知识库结构
+
+```
+training_principles   训练周期化、MEV/MRV、渐进超负荷
+exercise_technique    20个核心动作技术细节
+recovery_management   睡眠、减载、疲劳管理
+physiology            增肌机制、神经适应、超量恢复
+nutrition_basics      蛋白质需求、热量盈余、补剂
+```
+
+每个知识块包含 7 个结构化字段：
+`id / topic / decision_type / trigger_keywords / source / confidence / content`
+
+检索策略：意图识别 → 精准 Collection 定向检索 → decision_type 过滤 → top-5
+
+---
+
+## 快速开始
+
+**环境要求**：Python 3.11+，MySQL 8.0+
 
 ```bash
+git clone https://github.com/dhzhang41-tech/ai-fitness-coach.git
 cd ai-fitness-coach
-```
 
-### 2. 创建虚拟环境
-
-```bash
 python -m venv venv
-venv\Scripts\activate
-```
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Mac/Linux
 
-### 3. 安装依赖
-
-```bash
 pip install -r requirements.txt
-```
 
-### 4. 配置环境变量
+copy .env.example .env       # Windows
+# cp .env.example .env       # Mac/Linux
+# 编辑 .env 填入 DEEPSEEK_API_KEY 和 MYSQL_PASSWORD
 
-复制 `.env.example` 为 `.env`：
+python -m database.seed_data  # 初始化测试数据
 
-```bash
-copy .env.example .env
-```
-
-编辑 `.env` 文件，填入以下内容：
-- `DEEPSEEK_API_KEY`：你的 DeepSeek API 密钥
-- `MYSQL_PASSWORD`：你的 MySQL 密码
-
-### 5. 确保 MySQL 已启动
-
-确保 MySQL 服务正在运行。程序首次启动时会自动创建数据库和表。
-
-### 6. 初始化测试数据（可选）
-
-```bash
-python -m database.seed_data
-```
-
-### 7. 启动应用
-
-```bash
 streamlit run main.py
 ```
+
+---
 
 ## 项目结构
 
 ```
 ai-fitness-coach/
-├── .env.example         # 环境变量示例
-├── requirements.txt     # Python 依赖
-├── config.py            # 全局配置
-├── main.py              # Streamlit 主入口
-├── database/
-│   ├── db.py            # MySQL 数据库操作
-│   └── seed_data.py     # 测试数据初始化
-├── knowledge/
-│   ├── exercises.py     # 动作库（20个动作）
-│   └── rag.py           # ChromaDB RAG 知识检索
 ├── agents/
-│   ├── state.py         # LangGraph 状态定义
-│   ├── orchestrator.py  # 意图识别 + 计划检测
-│   ├── plan_agent.py    # 长期计划生成
-│   ├── adjust_agent.py  # 当日临时调整
-│   ├── replan_agent.py  # 训练中重规划
-│   ├── log_agent.py     # 训练日志记录
-│   └── graph.py         # LangGraph 主图
+│   ├── state.py           # LangGraph CoachState
+│   ├── orchestrator.py    # 意图识别 + 路由
+│   ├── training_agent.py  # 训练计划生成
+│   ├── recovery_agent.py  # 状态评估 + 恢复建议
+│   ├── adjust_agent.py    # 当日临时调整（不写DB）
+│   ├── replan_agent.py    # 训练中重规划（上限2次）
+│   ├── log_agent.py       # 日志写入 + PR检测
+│   ├── home_coach.py      # 首页对话 Agent
+│   ├── prompts.py         # COACH_SYSTEM_PROMPT
+│   └── graph.py           # LangGraph 主图
+├── knowledge/
+│   ├── exercises.py       # 20个动作结构化数据
+│   └── rag.py             # 5-Collection RAG + 意图检索
+├── database/
+│   └── db.py              # MySQL 操作层
 └── ui/
-    ├── forms.py         # Streamlit 表单组件
-    ├── display.py       # 展示组件
     └── pages/
-        ├── home.py      # 首页
-        ├── workout.py   # 训练流程
-        └── profile.py   # 个人档案
+        ├── home.py        # 首页（含 AI 教练对话）
+        ├── workout.py     # 完整训练流程状态机
+        ├── workout_history.py  # 训练记录
+        ├── plan_edit.py   # AI 格式化训练计划输入
+        └── profile.py     # 个人档案 + PR趋势
 ```
 
-## 功能
+---
 
-- **个性化训练计划**：根据用户档案（1RM、训练频率、年限）自动生成周期化训练计划
-- **两种计划架构**：长期周期计划 + 当日临时调整（不写数据库）
-- **智能状态评估**：根据睡眠、压力、疲劳度自动调整当日训练强度
-- **训练中重规划**：动作未完成可自动调整剩余计划（上限2次）
-- **知识库检索**：基于 ChromaDB 的 RAG 系统，提供动作指导和训练原理
-- **PR 追踪**：自动检测新 PR 并记录历史趋势
-- **长期计划自动检测**：完练率低或 PR 停滞时自动提醒调整计划
+## System Prompt 设计
 
-## 使用说明
+`agents/prompts.py` 包含 9 个 Section 的完整训练科学决策框架：
 
-1. 首次使用填写个人档案，系统自动生成训练周期计划
-2. 每次训练前填写状态评估，系统自动调整当日强度
-3. 训练中按顺序完成动作，可查看动作详解、提问教练
-4. 动作未完成可选择原因，系统自动调整剩余计划
-5. 训练完成后自动记录日志并检查 PR
-6. 首页实时查看蛋白质摄入和训练记录
+- **SECTION 1**：训练阶段动态评分（novice/intermediate/advanced）
+- **SECTION 2**：MEV/MRV 参考值 + 动态调整规则
+- **SECTION 3**：渐进超负荷五种方式优先级
+- **SECTION 4**：减载决策（标准减载 vs 深度减载）
+- **SECTION 5**：今日准备度评估（影响 RIR 而非直接降重量）
+- **SECTION 6**：停滞诊断（恢复不足型 vs 训练量不足型）
+- **SECTION 7**：疼痛处理框架（1-3/4-6/7+ 分级）
+- **SECTION 8**：回答模式（知识问答 vs 问题诊断）
+- **SECTION 9**：Agent 输出格式规范（含 flags 字段）
+
+---
+
+## 目标用户
+
+| 用户类型 | 痛点 | 系统解法 |
+|---------|------|---------|
+| 健身小白（0-3个月）| 不知道从哪开始，怕受伤 | 线性进阶逻辑，动作教程库，保守 RIR |
+| 瓶颈期用户（1-2年）| 进步停滞，不懂周期化 | RP Strength 体系，停滞诊断，主动减载 |
