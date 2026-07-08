@@ -47,3 +47,6 @@ fix_db.py
 *.pdf
 outputs/
 .claude/
+
+# 本地分析/快照文件
+tree.txt

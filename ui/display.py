@@ -6,6 +6,8 @@ from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_NAME
 
 client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
 
+MAX_REPLANS = 2
+
 
 def _find_exercise_detail(name: str) -> dict | None:
     for ex in EXERCISE_LIBRARY:
@@ -74,7 +76,7 @@ def render_exercise_card(exercise: dict, index: int, total: int, replan_count: i
         reason_col, done_col = st.columns([2, 1])
         with reason_col:
             if total > 0:
-                can_replan = replan_count < 3
+                can_replan = replan_count < MAX_REPLANS
                 if not can_replan or index >= total - 1:
                     st.warning("已达最大调整次数，可结束训练")
                 replan_options = ["太重", "太累", "部位不舒服", "没时间"]
@@ -88,7 +90,7 @@ def render_exercise_card(exercise: dict, index: int, total: int, replan_count: i
                     result = f"replan:{selected_reason}"
         with done_col:
             st.write("")
-            if index >= total - 1 or replan_count >= 3:
+            if index >= total - 1 or replan_count >= MAX_REPLANS:
                 if st.button("✅ 完成今日训练", key=f"done_{index}", type="primary"):
                     result = "done"
 

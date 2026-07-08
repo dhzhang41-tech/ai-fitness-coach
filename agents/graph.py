@@ -24,11 +24,19 @@ def build_graph():
     def route_after_orchestrator(state: CoachState) -> str:
         intent = state.get("intent", "")
         plan_needs_review = state.get("plan_needs_review", False)
-        print(f"[graph.route] intent={intent!r}, plan_needs_review={plan_needs_review}")
+        replan_reason = state.get("replan_reason")
+        print(
+            f"[graph.route] intent={intent!r}, "
+            f"plan_needs_review={plan_needs_review}, "
+            f"replan_reason={replan_reason!r}"
+        )
         if intent == "review_macro_plan":
             print("[graph.route] → plan_agent")
             return "plan_agent"
         elif intent == "start_workout":
+            if replan_reason:
+                print("[graph.route] → replan_agent (mid-workout replan)")
+                return "replan_agent"
             if state.get("is_override"):
                 print("[graph.route] → adjust_agent (override)")
                 return "adjust_agent"
