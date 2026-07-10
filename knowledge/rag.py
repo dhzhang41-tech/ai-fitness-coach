@@ -24,6 +24,12 @@ class LocalHashEmbeddingFunction:
     def __call__(self, input):
         return [self._embed(text) for text in input]
 
+    def embed_documents(self, texts):
+        return [self._embed(text) for text in texts]
+
+    def embed_query(self, text):
+        return self._embed(text)
+
     def _embed(self, text: str) -> list[float]:
         vector = [0.0] * self.dimensions
         normalized = str(text).lower()
