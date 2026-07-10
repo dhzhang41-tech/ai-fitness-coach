@@ -393,122 +393,129 @@ NUTRITION_KNOWLEDGE = [
 def _ensure_collections():
     global _client, _exercise_collection, _principle_collection, _recovery_collection
     global _physiology_collection, _nutrition_collection, _initialized
-    if _initialized:
-        return
     if _client is None:
         _client = chromadb.EphemeralClient()
+
+    if _exercise_collection is None:
         _exercise_collection = _client.get_or_create_collection(
             "exercise_library",
             embedding_function=_embedding_function,
         )
+    if _principle_collection is None:
         _principle_collection = _client.get_or_create_collection(
             "training_principles",
             embedding_function=_embedding_function,
         )
+    if _recovery_collection is None:
         _recovery_collection = _client.get_or_create_collection(
             "recovery_knowledge",
             embedding_function=_embedding_function,
         )
+    if _physiology_collection is None:
         _physiology_collection = _client.get_or_create_collection(
             "physiology",
             embedding_function=_embedding_function,
         )
+    if _nutrition_collection is None:
         _nutrition_collection = _client.get_or_create_collection(
             "nutrition_basics",
             embedding_function=_embedding_function,
         )
 
-        # ─── Insert training principles (8条) ────────────
-        ids, documents, metadatas = [], [], []
-        for kb in TRAINING_KNOWLEDGE:
-            ids.append(kb["id"])
-            documents.append(kb["content"])
-            metadatas.append({
-                "topic": kb["topic"],
-                "decision_type": kb["decision_type"],
-                "keywords": ",".join(kb["trigger_keywords"]),
-                "source": kb["source"],
-                "confidence": kb["confidence"],
-            })
-        _principle_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    if _initialized:
+        return
 
-        # ─── Insert exercise technique (9条 + 20个动作) ──
-        ids, documents, metadatas = [], [], []
-        for kb in TECHNIQUE_KNOWLEDGE:
-            ids.append(kb["id"])
-            documents.append(kb["content"])
-            metadatas.append({
-                "topic": kb["topic"],
-                "decision_type": kb["decision_type"],
-                "keywords": ",".join(kb["trigger_keywords"]),
-                "source": kb["source"],
-                "confidence": kb["confidence"],
-            })
-        # Add EXERCISE_LIBRARY items into exercise_technique collection
-        for i, ex in enumerate(EXERCISE_LIBRARY):
-            content = f"动作：{ex['name_cn']}（{ex['name_en']}）\n"
-            content += f"类别：{ex['category']}\n"
-            content += f"主要肌肉：{'、'.join(ex['primary_muscles'])}\n"
-            content += "要点：\n" + "\n".join(f"- {p}" for p in ex['key_points']) + "\n"
-            content += "常见错误：\n" + "\n".join(f"- {m}" for m in ex['common_mistakes']) + "\n"
-            content += f"提示口诀：{'，'.join(ex['cues'])}"
-            ids.append(f"ex_{i}")
-            documents.append(content)
-            metadatas.append({
-                "topic": f"动作库-{ex['name_cn']}",
-                "decision_type": "how",
-                "keywords": f"{ex['name_cn']},{ex['name_en']},{','.join(ex['primary_muscles'])}",
-                "source": "动作库",
-                "confidence": "high",
-                "name_cn": ex["name_cn"],
-                "name_en": ex["name_en"],
-                "category": ex["category"],
-            })
-        _exercise_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    # ─── Insert training principles (8条) ────────────
+    ids, documents, metadatas = [], [], []
+    for kb in TRAINING_KNOWLEDGE:
+        ids.append(kb["id"])
+        documents.append(kb["content"])
+        metadatas.append({
+            "topic": kb["topic"],
+            "decision_type": kb["decision_type"],
+            "keywords": ",".join(kb["trigger_keywords"]),
+            "source": kb["source"],
+            "confidence": kb["confidence"],
+        })
+    _principle_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
 
-        # ─── Insert recovery knowledge (7条) ────────────
-        ids, documents, metadatas = [], [], []
-        for kb in RECOVERY_KNOWLEDGE_STRUCTURED:
-            ids.append(kb["id"])
-            documents.append(kb["content"])
-            metadatas.append({
-                "topic": kb["topic"],
-                "decision_type": kb["decision_type"],
-                "keywords": ",".join(kb["trigger_keywords"]),
-                "source": kb["source"],
-                "confidence": kb["confidence"],
-            })
-        _recovery_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    # ─── Insert exercise technique (9条 + 20个动作) ──
+    ids, documents, metadatas = [], [], []
+    for kb in TECHNIQUE_KNOWLEDGE:
+        ids.append(kb["id"])
+        documents.append(kb["content"])
+        metadatas.append({
+            "topic": kb["topic"],
+            "decision_type": kb["decision_type"],
+            "keywords": ",".join(kb["trigger_keywords"]),
+            "source": kb["source"],
+            "confidence": kb["confidence"],
+        })
+    # Add EXERCISE_LIBRARY items into exercise_technique collection
+    for i, ex in enumerate(EXERCISE_LIBRARY):
+        content = f"动作：{ex['name_cn']}（{ex['name_en']}）\n"
+        content += f"类别：{ex['category']}\n"
+        content += f"主要肌肉：{'、'.join(ex['primary_muscles'])}\n"
+        content += "要点：\n" + "\n".join(f"- {p}" for p in ex['key_points']) + "\n"
+        content += "常见错误：\n" + "\n".join(f"- {m}" for m in ex['common_mistakes']) + "\n"
+        content += f"提示口诀：{'，'.join(ex['cues'])}"
+        ids.append(f"ex_{i}")
+        documents.append(content)
+        metadatas.append({
+            "topic": f"动作库-{ex['name_cn']}",
+            "decision_type": "how",
+            "keywords": f"{ex['name_cn']},{ex['name_en']},{','.join(ex['primary_muscles'])}",
+            "source": "动作库",
+            "confidence": "high",
+            "name_cn": ex["name_cn"],
+            "name_en": ex["name_en"],
+            "category": ex["category"],
+        })
+    _exercise_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
 
-        # ─── Insert physiology (5条) ────────────────────
-        ids, documents, metadatas = [], [], []
-        for kb in PHYSIOLOGY_KNOWLEDGE:
-            ids.append(kb["id"])
-            documents.append(kb["content"])
-            metadatas.append({
-                "topic": kb["topic"],
-                "decision_type": kb["decision_type"],
-                "keywords": ",".join(kb["trigger_keywords"]),
-                "source": kb["source"],
-                "confidence": kb["confidence"],
-            })
-        _physiology_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    # ─── Insert recovery knowledge (7条) ────────────
+    ids, documents, metadatas = [], [], []
+    for kb in RECOVERY_KNOWLEDGE_STRUCTURED:
+        ids.append(kb["id"])
+        documents.append(kb["content"])
+        metadatas.append({
+            "topic": kb["topic"],
+            "decision_type": kb["decision_type"],
+            "keywords": ",".join(kb["trigger_keywords"]),
+            "source": kb["source"],
+            "confidence": kb["confidence"],
+        })
+    _recovery_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
 
-        # ─── Insert nutrition (5条) ─────────────────────
-        ids, documents, metadatas = [], [], []
-        for kb in NUTRITION_KNOWLEDGE:
-            ids.append(kb["id"])
-            documents.append(kb["content"])
-            metadatas.append({
-                "topic": kb["topic"],
-                "decision_type": kb["decision_type"],
-                "keywords": ",".join(kb["trigger_keywords"]),
-                "source": kb["source"],
-                "confidence": kb["confidence"],
-            })
-        _nutrition_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    # ─── Insert physiology (5条) ────────────────────
+    ids, documents, metadatas = [], [], []
+    for kb in PHYSIOLOGY_KNOWLEDGE:
+        ids.append(kb["id"])
+        documents.append(kb["content"])
+        metadatas.append({
+            "topic": kb["topic"],
+            "decision_type": kb["decision_type"],
+            "keywords": ",".join(kb["trigger_keywords"]),
+            "source": kb["source"],
+            "confidence": kb["confidence"],
+        })
+    _physiology_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
 
-        _initialized = True
+    # ─── Insert nutrition (5条) ─────────────────────
+    ids, documents, metadatas = [], [], []
+    for kb in NUTRITION_KNOWLEDGE:
+        ids.append(kb["id"])
+        documents.append(kb["content"])
+        metadatas.append({
+            "topic": kb["topic"],
+            "decision_type": kb["decision_type"],
+            "keywords": ",".join(kb["trigger_keywords"]),
+            "source": kb["source"],
+            "confidence": kb["confidence"],
+        })
+    _nutrition_collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+
+    _initialized = True
 
 
 def init_knowledge_base() -> None:
