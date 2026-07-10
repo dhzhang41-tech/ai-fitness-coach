@@ -7,34 +7,53 @@ from ui.forms import render_readiness_form, render_workout_log_form
 from ui.display import render_exercise_card, render_training_summary
 
 
-def get_today_plan(user_id: str) -> dict | None:
+def _load_plan_days(user_id: str) -> list[dict]:
+    """Return the active cycle's days in a common format."""
+    profile = get_user_profile(user_id)
+    if not profile:
+        return []
+
+    macro_json = profile.get("macro_plan_json")
+    if not macro_json:
+        return []
+
+    try:
+        macro = json.loads(macro_json)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+    if macro.get("days"):
+        return macro["days"]
+
+    weeks = macro.get("weeks", [])
+    if not weeks:
+        return []
+
+    current_week = int(macro.get("current_week") or profile.get("macro_week") or 1)
+    week = next((w for w in weeks if int(w.get("week", 0)) == current_week), weeks[0])
+    days = []
+    for day in week.get("days", []):
+        days.append({
+            "day_name": day.get("day_name") or day.get("day_key") or "训练日",
+            "exercises": day.get("exercises", []),
+        })
+    return days
+
+
+def get_today_plan(user_id: str, selected_index: int | None = None) -> dict | None:
     """
     根据循环周期索引读取今日训练计划。
     返回 None 表示今日是休息日或无计划。
     """
     from database.db import (
-        get_user_profile,
         get_today_cycle_index,
     )
 
-    profile = get_user_profile(user_id)
-    if not profile:
-        return None
-
-    macro_json = profile.get("macro_plan_json")
-    if not macro_json:
-        return None
-
-    try:
-        macro = json.loads(macro_json)
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-    days = macro.get("days", [])
+    days = _load_plan_days(user_id)
     if not days:
         return None
 
-    idx = get_today_cycle_index(user_id)
+    idx = selected_index if selected_index is not None else get_today_cycle_index(user_id)
     if idx >= len(days):
         idx = 0
 
@@ -47,6 +66,45 @@ def get_today_plan(user_id: str) -> dict | None:
         return None
 
     return today_day
+
+
+def render_plan_day_selector(user_id: str) -> int | None:
+    from database.db import get_today_cycle_index
+
+    days = _load_plan_days(user_id)
+    if not days:
+        return None
+
+    auto_idx = get_today_cycle_index(user_id)
+    if auto_idx >= len(days):
+        auto_idx = 0
+
+    selected = st.session_state.get("selected_plan_day_index", auto_idx)
+    if selected >= len(days):
+        selected = auto_idx
+
+    options = list(range(len(days)))
+    labels = []
+    for idx in options:
+        day = days[idx]
+        day_name = day.get("day_name", "训练日")
+        exercises = day.get("exercises", [])
+        marker = " · 系统默认" if idx == auto_idx else ""
+        summary = "休息" if not exercises else f"{len(exercises)}个动作"
+        labels.append(f"第{idx + 1}天：{day_name}（{summary}）{marker}")
+
+    selected = st.selectbox(
+        "今天实际执行哪一天？",
+        options=options,
+        index=options.index(selected),
+        format_func=lambda idx: labels[idx],
+        key="selected_plan_day_index",
+    )
+
+    if selected != auto_idx:
+        st.info("已按你选择的训练日执行，不再强制使用系统按日期推算的训练日。")
+
+    return selected
 
 
 def render_workout(user_id: str):
@@ -73,8 +131,10 @@ def render_workout(user_id: str):
     elif step == "plan_display":
         st.title("📋 今日训练计划")
 
+        selected_idx = render_plan_day_selector(user_id)
+
         # 读取今日计划
-        today_plan = get_today_plan(user_id)
+        today_plan = get_today_plan(user_id, selected_idx)
 
         if not today_plan:
             # 判断是休息日还是没有计划
@@ -300,7 +360,8 @@ def render_workout(user_id: str):
             # 重置 workout state
             for k in ["workout_step", "current_exercise_index", "completed_exercises",
                       "replan_count", "current_plan", "today_readiness",
-                      "is_override_setting", "completed_log"]:
+                      "is_override_setting", "completed_log",
+                      "selected_plan_day_index"]:
                 if k in st.session_state:
                     del st.session_state[k]
             st.session_state.page = "home"

@@ -110,12 +110,16 @@ def render_home(user_id: str):
 
     elif rest_day:
         st.info("🛌 今日休息日，专注恢复")
-        st.button(
-            "🛌 今日休息日",
+        if st.button(
+            "🏋️ 选择训练日开始训练",
             key="home_btn_start_today",
             use_container_width=True,
-            disabled=True,
-        )
+            type="primary",
+        ):
+            st.session_state.page = "workout"
+            st.session_state.workout_step = "readiness_form"
+            st.session_state.current_exercise_index = 0
+            st.rerun()
 
     else:
         macro_json = profile.get("macro_plan_json") if profile else None
