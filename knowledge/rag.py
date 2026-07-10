@@ -21,9 +21,8 @@ class LocalHashEmbeddingFunction:
     def name(self) -> str:
         return "local_hash_embedding"
 
-    def __call__(self, input=None, **kwargs):
-        texts = input if input is not None else kwargs.get("texts", [])
-        return [self._embed(text) for text in texts]
+    def __call__(self, input):
+        return [self._embed(text) for text in input]
 
     def embed_documents(self, texts=None, **kwargs):
         texts = texts if texts is not None else kwargs.get("input", [])
