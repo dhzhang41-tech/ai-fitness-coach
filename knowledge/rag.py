@@ -30,6 +30,8 @@ class LocalHashEmbeddingFunction:
 
     def embed_query(self, text=None, **kwargs):
         text = text if text is not None else kwargs.get("input", "")
+        if isinstance(text, list):
+            return [self._embed(item) for item in text]
         return self._embed(text)
 
     def _embed(self, text: str) -> list[float]:
