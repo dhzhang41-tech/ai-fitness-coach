@@ -71,19 +71,27 @@ CREATE TABLE IF NOT EXISTS nutrition_logs (
 );
 """
 
-def get_connection() -> connection.MySQLConnection:
-    conn = mysql.connector.connect(
-        host=MYSQL_CONFIG["host"],
-        port=MYSQL_CONFIG["port"],
-        user=MYSQL_CONFIG["user"],
-        password=MYSQL_CONFIG["password"],
-    )
+def get_connection(use_database: bool = False) -> connection.MySQLConnection:
+    config = {
+        "host": MYSQL_CONFIG["host"],
+        "port": MYSQL_CONFIG["port"],
+        "user": MYSQL_CONFIG["user"],
+        "password": MYSQL_CONFIG["password"],
+    }
+    if use_database:
+        config["database"] = MYSQL_CONFIG["database"]
+    conn = mysql.connector.connect(**config)
     return conn
 
 def init_db() -> None:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(CREATE_DB_SQL)
+    try:
+        cursor.execute(CREATE_DB_SQL)
+    except Exception as e:
+        # Managed MySQL providers often require creating the database in the
+        # dashboard and do not grant CREATE DATABASE permission to app users.
+        print(f"[db.init_db] CREATE DATABASE skipped or failed: {e}")
     cursor.close()
     conn.database = MYSQL_CONFIG["database"]
     for statement in CREATE_TABLES_SQL.split(";"):

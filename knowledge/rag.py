@@ -1,6 +1,47 @@
 # -*- coding: utf-8 -*-
+import hashlib
+import math
+
 import chromadb
 from knowledge.exercises import EXERCISE_LIBRARY
+
+
+class LocalHashEmbeddingFunction:
+    """Small local embedding function to avoid model downloads during deploy.
+
+    ChromaDB's default embedding function downloads an ONNX model on first use.
+    That is fragile on small cloud servers, especially when GitHub/model hosts
+    are slow or blocked. This hash-based vectorizer is deterministic and good
+    enough for the project's small built-in knowledge base.
+    """
+
+    def __init__(self, dimensions: int = 384):
+        self.dimensions = dimensions
+
+    def __call__(self, input):
+        return [self._embed(text) for text in input]
+
+    def _embed(self, text: str) -> list[float]:
+        vector = [0.0] * self.dimensions
+        normalized = str(text).lower()
+        tokens = list(normalized)
+        tokens += normalized.split()
+
+        for token in tokens:
+            if not token.strip():
+                continue
+            digest = hashlib.md5(token.encode("utf-8")).digest()
+            idx = int.from_bytes(digest[:4], "little") % self.dimensions
+            sign = 1.0 if digest[4] % 2 == 0 else -1.0
+            vector[idx] += sign
+
+        norm = math.sqrt(sum(v * v for v in vector))
+        if norm == 0:
+            return vector
+        return [v / norm for v in vector]
+
+
+_embedding_function = LocalHashEmbeddingFunction()
 
 _client = None
 _exercise_collection = None
@@ -344,11 +385,26 @@ def _ensure_collections():
         return
     if _client is None:
         _client = chromadb.EphemeralClient()
-        _exercise_collection = _client.get_or_create_collection("exercise_library")
-        _principle_collection = _client.get_or_create_collection("training_principles")
-        _recovery_collection = _client.get_or_create_collection("recovery_knowledge")
-        _physiology_collection = _client.get_or_create_collection("physiology")
-        _nutrition_collection = _client.get_or_create_collection("nutrition_basics")
+        _exercise_collection = _client.get_or_create_collection(
+            "exercise_library",
+            embedding_function=_embedding_function,
+        )
+        _principle_collection = _client.get_or_create_collection(
+            "training_principles",
+            embedding_function=_embedding_function,
+        )
+        _recovery_collection = _client.get_or_create_collection(
+            "recovery_knowledge",
+            embedding_function=_embedding_function,
+        )
+        _physiology_collection = _client.get_or_create_collection(
+            "physiology",
+            embedding_function=_embedding_function,
+        )
+        _nutrition_collection = _client.get_or_create_collection(
+            "nutrition_basics",
+            embedding_function=_embedding_function,
+        )
 
         # ─── Insert training principles (8条) ────────────
         ids, documents, metadatas = [], [], []
