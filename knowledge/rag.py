@@ -18,6 +18,9 @@ class LocalHashEmbeddingFunction:
     def __init__(self, dimensions: int = 384):
         self.dimensions = dimensions
 
+    def name(self) -> str:
+        return "local_hash_embedding"
+
     def __call__(self, input):
         return [self._embed(text) for text in input]
 
