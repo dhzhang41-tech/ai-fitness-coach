@@ -1,6 +1,6 @@
 import uuid
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 import mysql.connector
 from mysql.connector import connection
@@ -127,9 +127,30 @@ def init_db() -> None:
 
 # ─── 推算函数 ──────────────────────────────────────────
 
+def _coerce_date(value) -> date:
+    """Convert app/database date values to a date object."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        return date.fromisoformat(value)
+    raise TypeError(f"Expected date or ISO date string, got {type(value).__name__}")
+
+
+def _normalize_date_fields(row: Optional[dict], fields: tuple[str, ...]) -> Optional[dict]:
+    if not row:
+        return row
+    normalized = dict(row)
+    for field in fields:
+        if normalized.get(field) is not None:
+            normalized[field] = _coerce_date(normalized[field]).isoformat()
+    return normalized
+
+
 def calculate_age(birth_date_str: str) -> int:
     """根据出生日期推算当前年龄"""
-    birth = date.fromisoformat(birth_date_str)
+    birth = _coerce_date(birth_date_str)
     today = date.today()
     age = today.year - birth.year
     if (today.month, today.day) < (birth.month, birth.day):
@@ -138,7 +159,7 @@ def calculate_age(birth_date_str: str) -> int:
 
 def calculate_training_years(start_date_str: str) -> float:
     """根据开始训练时间推算训练年限，保留一位小数"""
-    start = date.fromisoformat(start_date_str)
+    start = _coerce_date(start_date_str)
     today = date.today()
     days = (today - start).days
     return round(days / 365.25, 1)
@@ -177,7 +198,10 @@ def get_user_profile(user_id: str) -> Optional[dict]:
     row = cursor.fetchone()
     cursor.close()
     conn.close()
-    return row
+    return _normalize_date_fields(
+        row,
+        ("birth_date", "training_start_date", "macro_start_date"),
+    )
 
 def save_user_profile(user_id: str, profile: dict) -> None:
     conn = get_connection()

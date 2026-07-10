@@ -178,7 +178,7 @@ def plan_agent_node(state: dict) -> dict:
                 {
                     "role": "user",
                     "content": (
-                        f"用户档案：{json.dumps(profile, ensure_ascii=False)}\n"
+                        f"用户档案：{json.dumps(profile, ensure_ascii=False, default=str)}\n"
                         f"训练原则参考：{' '.join(principles)}\n"
                         f"生成的计划摘要：{json.dumps(plan, ensure_ascii=False)}\n"
                         "请简要说明这个训练周期的安排逻辑和注意事项。"
